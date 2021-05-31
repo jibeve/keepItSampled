@@ -1,0 +1,285 @@
+{------------------------------------------------------------------------------------
+Title: Jib3 Synth
+File: jib3 Synth.KSP
+Author: JB VOillemin
+First Written: Mai 2021
+Current Version: 1.0
+Last modified: 28 May 2021
+-------------------------------------------------------------------------------------}
+
+
+on init
+	make_perfview {enable performance view}
+
+	set_ui_height_px(250) {set UI height}
+
+	{*************************************************************************************
+	*VARIABLES*
+	*************************************************************************************}
+
+	declare $i
+	declare $cc_value
+	declare polyphonic $j
+	
+	{*************************************************************************************
+	*CONSTANTS*
+	*************************************************************************************}
+
+	declare const $NOISE_GROUP := 4
+
+	declare const $ARP_KEY := 33
+	declare const $ARP_STEPS := 5
+
+	{*************************************************************************************
+	*ARRAYS*
+	*************************************************************************************}
+
+	declare %groups[4] := (0) {by default all groups are off}
+	make_persistent(%groups)
+
+	declare %key_switches[4] := (24, 26, 28, 29) {key switches: leads, bass, pads, pulses}
+
+	{*************************************************************************************
+	*GUI*
+	*************************************************************************************}
+		
+		{Key colors}
+		$i := 0
+		while($i < num_elements (%key_switches)) {Each key switch}
+			set_key_color(%key_switches[$i], $KEY_COLOR_RED)
+			inc($i)
+		end while
+
+		set_key_color($ARP_KEY, $KEY_COLOR_GREEN)
+
+
+		{noise volume control}
+
+		declare ui_knob $knb_noise(0, 500000, 1) {declare a knon control}
+		set_text($knb_noise, "Noise vol") {naming the control}
+		move_control_px($knb_noise, 271, 71) {Positionning the control using pixels}
+		make_persistent($knb_noise) {to remember the value}
+
+		{vibrato controls}
+
+		declare ui_switch $swi_modulator {declare switch control}
+		set_text($swi_modulator, "Vibrato on/off")
+		move_control_px($swi_modulator, 125, 34)
+		make_persistent($swi_modulator)
+
+		declare ui_slider $slid_mod_freq(0, 1000000) {declare slider control}
+		move_control_px($slid_mod_freq, 26, 64)
+		make_persistent($slid_mod_freq)
+
+		declare ui_slider $slid_mod_fade_in(0, 1000000) {declare slider control}
+		move_control_px($slid_mod_fade_in, 26, 94)
+		make_persistent($slid_mod_fade_in)
+
+		{vibrato controls}
+
+		declare ui_button $btn_delay {delay bypass button}
+		set_text($btn_delay, "Delay on/off") {naming the control}
+		move_control_px($btn_delay, 530, 34) {Positionning the control using pixels}
+		make_persistent($btn_delay) {to remember the value}
+
+		
+		declare ui_slider $sli_dl_time(0, 1000000) {declare delay time slider}
+		move_control_px($sli_dl_time, 432, 64)
+		make_persistent($sli_dl_time)
+
+		declare ui_slider $sli_dl_feedback(0, 1000000) {declare delay feedback slider}
+		move_control_px($sli_dl_feedback, 432, 94)
+		make_persistent($sli_dl_feedback)
+
+	{ADSR controls}
+
+		declare ui_knob $knb_a(0, 1000000, 1) {Attack}
+		set_text($knb_a, "Attack")
+		set_control_par(get_ui_id($knb_a), $CONTROL_PAR_POS_X, 78)
+		set_control_par(get_ui_id($knb_a), $CONTROL_PAR_POS_Y, 188)
+		make_persistent($knb_a)
+
+		declare ui_knob $knb_d(0, 1000000, 1) {Attack}
+		set_text($knb_d, "Decay")
+		set_control_par(get_ui_id($knb_d), $CONTROL_PAR_POS_X, 208)
+		set_control_par(get_ui_id($knb_d), $CONTROL_PAR_POS_Y, 188)
+		make_persistent($knb_d)
+
+		declare ui_knob $knb_s(0, 1000000, 1) {Attack}
+		set_text($knb_s, "Sustain")
+		set_control_par(get_ui_id($knb_s), $CONTROL_PAR_POS_X, 338)
+		set_control_par(get_ui_id($knb_s), $CONTROL_PAR_POS_Y, 188)
+		make_persistent($knb_s)
+
+		declare ui_knob $knb_r(0, 1000000, 1) {Attack}
+		set_text($knb_r, "Release")
+		set_control_par(get_ui_id($knb_r), $CONTROL_PAR_POS_X, 468)
+		set_control_par(get_ui_id($knb_r), $CONTROL_PAR_POS_Y, 188)
+		make_persistent($knb_r)
+
+		message("")
+end on
+
+
+on note
+
+
+	disallow_group( $ALL_GROUPS )
+	allow_group($NOISE_GROUP) {noise group is always trun on
+
+
+	{KEY SWICHES}
+
+	if(search(%key_switches, $EVENT_NOTE) # -1) {we search the key switch array}
+		%groups[search(%key_switches, $EVENT_NOTE)] := abs(%groups[search(%key_switches, $EVENT_NOTE)]-1)
+	end if
+
+	$i := 0 {reset iterator}
+	while ($i < num_elements(%groups)) {Each sample group}
+		if(%groups[$i]=1) {group enable by keyswitch}
+			allow_group($i)
+		end if
+		inc($i)
+	end while
+
+
+	{ ARPEGIATOR }
+	if(%KEY_DOWN[$ARP_KEY] = 1 and $EVENT_NOTE # $ARP_KEY) {if we hold down the arp key and the note that triggers this callback is not(#) the arp key}
+		ignore_event($EVENT_ID)
+
+		while($NOTE_HELD = 1) {while we held the note, trigger the arp loop}
+
+			{UP}
+			$j := 0
+			while($j < $ARP_STEPS) {each run step}
+				play_note($EVENT_NOTE + $j + 1, $EVENT_VELOCITY, 0, 150000) {play a note}
+				wait(130000)
+				inc($j)
+				{message($EVENT_NOTE + $j)}
+			end while
+
+			wait(10000)
+
+			{DOWN}
+			$j := 0
+				while($j < $ARP_STEPS ) {each run step, if we want the arp to stop as soon as we release the key we need to add : and $NOTE_HELD = 1}
+					play_note($EVENT_NOTE + $ARP_STEPS - ($j + 1), $EVENT_VELOCITY, 0, 150000) {add 1 to $j to not play the note twice}
+					wait(130000)
+					inc($j)
+					{message($EVENT_NOTE + $ARP_STEPS - ($j + 1))}
+				end while
+
+			wait(10000)
+		end while
+	end if
+	
+end on
+
+
+{ MIDI controller callback, executed whenever a CC, pitch bend or channel pressure message is received }
+on controller
+	if ($CC_NUM = 1) {if CC_NUM is modwheel}
+
+		{we scale the value}
+		$cc_value :=(%CC[$CC_NUM] - 0)*(1000000 - 0) / (127 - 0) + 0 {(value - odlmin) * (newmax - newmin)/(oldmax - oldmin)+newmin}
+		
+		$i :=0 {rest iterator}
+
+		{we loop through each group except the last }
+		while ($i < $NUM_GROUPS-1) {each group exept the last}
+		{we set the value of theintensity slider to the value we've just calculated for thr current group}
+			set_engine_par($ENGINE_PAR_MOD_TARGET_INTENSITY, $cc_value, $i, find_mod($i, "LFO_TRI"), -1)
+			{we go onto the next group with incrementation}
+			inc($i)
+		end while
+	end if
+end on
+
+	{*************************************************************************************
+	*USER FUNCTIONS*
+	*************************************************************************************}
+
+	{**/
+	* This function updates the attack, decay, sustain and release parameters of the ADSR for all groups except the last group.
+	*/}
+
+function update_adsr()
+	$i := 0
+	while($i < $NUM_GROUPS - 1) {each group except the last one}
+		set_engine_par($ENGINE_PAR_ATTACK, $knb_a, $i, 0, -1) {set the attack engine parameter for the current group - $i}
+		set_engine_par($ENGINE_PAR_DECAY, $knb_d, $i, 0, -1)
+		set_engine_par($ENGINE_PAR_SUSTAIN, $knb_s, $i, 0, -1)
+		set_engine_par($ENGINE_PAR_RELEASE, $knb_r, $i, 0, -1)
+		inc($i) {increment $i}
+	end while
+end function
+
+	{*************************************************************************************
+	*UI CALLBACKS*
+	*************************************************************************************}
+
+{ADSR CONTROL}
+
+on ui_control($knb_a) {attack knob callback}
+	call update_adsr()
+end on
+
+on ui_control($knb_d)
+	call update_adsr()
+end on
+
+on ui_control($knb_s)
+	call update_adsr()
+end on
+
+on ui_control($knb_r)
+	call update_adsr()
+end on
+
+{DELAY CONTROLS}
+
+on ui_control($btn_delay)
+	set_engine_par($ENGINE_PAR_EFFECT_BYPASS, abs($btn_delay-1), -1, 0, 1) {delay bypass button, abs return a positive value}
+end on
+
+on ui_control($sli_dl_time)
+	set_engine_par($ENGINE_PAR_DL_TIME, $sli_dl_time, -1, 0, 1) {delay time slider}
+end on
+
+{VIBRATO LFO CONTROL}
+
+on ui_control($swi_modulator) {vibrato bypass}
+	$i := 0
+	while ($i < $NUM_GROUPS -1) {each group exept the last}
+		set_engine_par($ENGINE_PAR_INTMOD_BYPASS, abs($swi_modulator - 1), $i, find_mod($i, "LFO_TRI"), -1)
+		inc($i)
+	end while
+end on
+
+on ui_control($slid_mod_freq) {vibrato frequency}
+	$i := 0
+	while ($i < $NUM_GROUPS - 1)
+		set_engine_par($ENGINE_PAR_INTMOD_FREQUENCY, $slid_mod_freq, $i, find_mod($i, "LFO_TRI"), -1)
+		inc($i)
+	end while
+end on
+
+on ui_control($slid_mod_fade_in) {vibrato frequency}
+	$i := 0
+	while ($i < $NUM_GROUPS - 1)
+		set_engine_par($ENGINE_PAR_LFO_DELAY, $slid_mod_fade_in, $i, find_mod($i, "LFO_TRI"), -1)
+		inc($i)
+	end while
+end on
+
+{NOISE CONTROL}
+
+on ui_control($knb_noise)
+	set_engine_par($ENGINE_PAR_VOLUME, $knb_noise, $NOISE_GROUP, -1, -1) {change the volume of a group}
+end on
+
+
+
+
+
+
